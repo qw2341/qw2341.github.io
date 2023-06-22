@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Projects</title>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <a class="navbar-brand" href="#">My Portfolio</a>
+      <button
+        class="navbar-toggler"
+        type="button"
+        data-toggle="collapse"
+        data-target="#navbarNav"
+        aria-controls="navbarNav"
+        aria-expanded="false"
+        aria-label="Toggle navigation"
+      >
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ml-auto">
+          <li class="nav-item">
+            <a class="nav-link" href="#about">About</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="portfolio.html">Portfolio</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="projects.html">Projects</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#resume">Resume</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#contact">Contact</a>
+          </li>
+        </ul>
+      </div>
+    </nav>
+
+    <section id="projects" class="container py-5">
+      <h2 class="mb-3">My GitHub Projects</h2>
+      <div id="projects-list" class="row">
+        <!-- JavaScript will insert projects here -->
+      </div>
+    </section>
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <script>
+      $(document).ready(function () {
+        const url = `https://api.github.com/users/qw2341/repos`;
+
+        fetch(url)
+          .then((response) => response.json())
+          .then((data) => {
+            const projectsDiv = document.getElementById("projects-list");
+
+            data.forEach((repo) => {
+              const projectCard = `
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${repo.name}</h5>
+                                        <p class="card-text">${
+                                          repo.description ||
+                                          "No description provided."
+                                        }</p>
+                                        <a href="${
+                                          repo.html_url
+                                        }" class="btn btn-primary" target="_blank">View on GitHub</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+              projectsDiv.innerHTML += projectCard;
+            });
+          })
+          .catch((error) => console.error("Error:", error));
+
+        const url2 = `https://api.github.com/users/qwu86/repos`;
+
+        fetch(url2)
+          .then((response) => response.json())
+          .then((data) => {
+            const projectsDiv = document.getElementById("projects-list");
+
+            data.forEach((repo) => {
+              const projectCard = `
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${repo.name}</h5>
+                                        <p class="card-text">${
+                                          repo.description ||
+                                          "No description provided."
+                                        }</p>
+                                        <a href="${
+                                          repo.html_url
+                                        }" class="btn btn-primary" target="_blank">View on GitHub</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+              projectsDiv.innerHTML += projectCard;
+            });
+          })
+          .catch((error) => console.error("Error:", error));
+      });
+    </script>
+  </body>
+</html>
