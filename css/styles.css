@@ -44,6 +44,12 @@ a {
   font-weight: 300;
 }
 
+.profile-pic {
+  width: 50%;
+  max-width: 100%;
+  height: auto;
+}
+
 /* Portfolio */
 #portfolio .card {
   box-shadow: 0px 1px 10px rgba(0, 0, 0, 0.1);
