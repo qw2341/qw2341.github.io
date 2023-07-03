@@ -63,17 +63,18 @@
       <div id="portfolio-container"></div>
     </section>
 
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
     <script src="get_portfolio_folders.php"></script>
 
     <script>
-      function callback(folders) {
-        folders.forEach((folderName) => createCard(folderName));
-      }
+      let portfolioList = ["roguelike", "favoritelocations"];
+
+      portfolioList.forEach((folderName) => createCard(folderName));
 
       function createCard(folderName) {
+        console.log(folderName);
         $.getJSON(`portfolio/${folderName}/properties.json`, function (data) {
           let title = data.TITLE;
           let description = data.DESCRIPTION;
