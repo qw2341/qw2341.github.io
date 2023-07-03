@@ -80,3 +80,10 @@ a {
   color: #333;
   border: 1px solid #333;
 }
+
+.card img {
+  width: 100%;
+  height: auto;
+  max-width: 300px;
+  object-fit: cover;
+}
