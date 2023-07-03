@@ -1,0 +1,1277 @@
+<head>
+  <title>Roguelike Dungeon Game</title>
+  <style>
+    /*Style for the canvas*/
+    canvas {
+      background: #eee;
+      display: block;
+      margin: 0 auto;
+    }
+
+    /*Button DIY reference: https://stackoverflow.com/questions/28261287/how-to-change-btn-color-in-bootstrap*/
+    .list-group-item-epic {
+      background-color: #d6b5f5;
+      border-color: #8a2be2;
+      color: #8a2be2;
+    }
+    .list-group-item-epic:hover,
+    .list-group-item-epic:active,
+    .list-group-item-epic:focus {
+      background-color: #c495f0;
+      color: #8a2be2;
+    }
+
+    .list-group-item-legendary {
+      background-color: #ffd199;
+      border-color: #ff8c00;
+      color: #ff6600;
+    }
+    .list-group-item-legendary:hover,
+    .list-group-item-legendary:active,
+    .list-group-item-legendary:focus {
+      background-color: #ffba66;
+      color: #ff8c00;
+    }
+
+    .list-group-item-developer {
+      background-color: #ffccff;
+      border-color: #ff00ff;
+      color: #ff8c00;
+      animation: rainbowColor 5s linear 0s infinite;
+      animation-direction: normal;
+    }
+    .list-group-item-developer:hover,
+    .list-group-item-developer:active,
+    .list-group-item-developer:focus {
+      background-color: #ff80ff;
+      color: #ff8c00;
+    }
+    /*
+Reference: https://stackoverflow.com/questions/54702124/rainbow-text-animation-using-only-css/54702294
+*/
+    @keyframes rainbowColor {
+      from {
+        color: red;
+      }
+      14% {
+        color: orange;
+      }
+      28% {
+        color: yellow;
+      }
+      42% {
+        color: green;
+      }
+      56% {
+        color: cyan;
+      }
+      70% {
+        color: blue;
+      }
+      84% {
+        color: purple;
+      }
+      100% {
+        color: pink;
+      }
+    }
+
+    #textOutput {
+      overflow: auto;
+    }
+
+    .tutorial {
+      font-size: 10px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container ml-1">
+    <div class="row">
+      <div class="col">
+        <!--Inspiration from a tutorial: https://developer.mozilla.org/en-US/docs/Games/Tutorials/2D_Breakout_game_pure_JavaScript/Create_the_Canvas_and_draw_on_it-->
+        <!--generates a 1280*720 canvas-->
+        <canvas id="myCanvas"></canvas>
+        <div class="row">
+          <div class="col">
+            <div id="textOutputArea">
+              <pre id="textOutput"></pre>
+            </div>
+          </div>
+          <div class="col">
+            <h4>
+              Enemy on the current tile: <span id="currentEnemy">None</span>
+            </h4>
+          </div>
+        </div>
+      </div>
+      <div class="col-3">
+        <!--Status Section-->
+        <span>
+          <!-- Reference: https://getbootstrap.com/docs/4.0/components/collapse/ -->
+          <p>
+            <button
+              class="btn btn-primary"
+              type="button"
+              data-toggle="collapse"
+              data-target="#collapseExample"
+              aria-expanded="false"
+              aria-controls="collapseExample"
+            >
+              Controls
+            </button>
+          </p>
+          <div class="collapse" id="collapseExample">
+            <div class="card card-body tutorial">
+              Arrow Keys to move <br />
+              Space bar to interact with tiles<br />
+              Double Click item to equip/unequip/use<br />
+              Hover over item to see tooltip<br />
+              Press N to go to Next Map<br />
+            </div>
+          </div>
+
+          <button class="btn btn-secondary" onClick="nextMap()">
+            Go to New Map
+          </button>
+          <br />
+          Score: <span id="score"></span>
+          <br />
+          HP:
+          <div class="progress">
+            <div
+              id="hp"
+              class="progress-bar bg-danger"
+              role="progressbar"
+              style="width: 100%"
+              aria-valuenow="100"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >
+              100%
+            </div>
+          </div>
+          <br />
+          Attack: <span id="atk"></span>
+          <br />
+          Defence: <span id="def"></span>
+          <br />
+        </span>
+        <button class="btn btn-primary" onclick="interact()">Interact</button>
+        <br />
+        <br />
+        Backpack:
+        <div class="list-group" id="myBackpack"></div>
+
+        Equipment<span id="equipCount"></span> :
+        <div class="list-group" id="myEquipment"></div>
+        <br />
+      </div>
+    </div>
+  </div>
+
+  <!-- Hearthstone Innkeeper's Sound Source: http://finthemurloc.blogspot.com/2014/02/the-innkeeper-hearthstone-sounds.html -->
+  <!-- Currently dead :( -->
+  <audio
+    id="rareSound"
+    src="https://sites.google.com/site/finthemurloc/sounds/misc/Innkeeper-Rare.mp3?attredirects=0&d=1"
+  ></audio>
+  <audio
+    id="epicSound"
+    src="https://sites.google.com/site/finthemurloc/sounds/misc/Innkeeper-Epic.mp3?attredirects=0&d=1"
+  ></audio>
+  <audio
+    id="legendarySound"
+    src="https://sites.google.com/site/finthemurloc/sounds/misc/Innkeeper-Legendary.mp3?attredirects=0&d=1"
+  ></audio>
+  <audio
+    id="gLegendarySound"
+    src="https://sites.google.com/site/finthemurloc/sounds/misc/Innkeeper-GoldenLegendary.mp3?attredirects=0&d=1"
+  ></audio>
+  <script>
+    /*
+    An RPG game made by Qingqi Wu
+    *Randomly generated maps and loots
+    Also contains easter eggs
+    
+    Controls: Use Arrow Keys to Move;
+    Use interact button/Space bar to interact with the tile;
+    Double Click item to equip/unequip/use
+    Collect Loots to fight;
+    Green & Grey Tiles: decoration
+    Red Tiles: enemy
+    Yellow Tiles: treasure
+    */
+
+    //Toggle debug mode
+    var debug = false;
+    /*
+      Storing the canvas element and 2d rendering context
+      Reference: https://developer.mozilla.org/en-US/docs/Games/Tutorials/2D_Breakout_game_pure_JavaScript/Create_the_Canvas_and_draw_on_it
+    */
+    var canvasEl = document.getElementById("myCanvas");
+    var context = canvasEl.getContext("2d");
+
+    /*
+    A funciton for playing Sound effects
+    */
+    function announce(rarity) {
+      switch (rarity) {
+        case 1:
+          document.getElementById("rareSound").play();
+          if (debug) {
+            printMsg("Rare sound played");
+          }
+          break;
+        case 2:
+          document.getElementById("epicSound").play();
+          break;
+        case 3:
+          document.getElementById("legendarySound").play();
+          break;
+        case 4:
+          document.getElementById("gLegendarySound").play();
+          break;
+      }
+    }
+
+    //constructor for loot items
+    function Loot(
+      name,
+      rarity,
+      hpBoost,
+      atkBoost,
+      defBoost,
+      maxHpBoost,
+      oneTimeUse,
+      toolTip
+    ) {
+      this.name = name;
+      this.rarity = rarity;
+      this.hpBoost = hpBoost;
+      this.atkBoost = atkBoost;
+      this.defBoost = defBoost;
+      this.maxHpBoost = maxHpBoost;
+      this.oneTimeUse = oneTimeUse;
+      this.toolTip = toolTip;
+    }
+
+    //list of loots in different rarities
+    /*
+    An array of loot generating functions
+    
+    loot template: function () {
+          return new Loot(name,rarity,hpBoost,atkBoost,defBoost,maxHpBoost,oneTimeUse, toolTip);
+        }
+    */
+
+    var lootList = [
+      //loots are separated into tiers using the card rarity from Hearthstone
+      //common
+      [
+        function () {
+          return new Loot("Rusty Knife", 0, 0, 2, 0, 0, false, "");
+        },
+        function () {
+          return new Loot(
+            "Apple",
+            0,
+            5,
+            0,
+            0,
+            0,
+            true,
+            "Keeps the doctor away!"
+          );
+        },
+        function () {
+          return new Loot("Cake Slice", 0, 4, 0, 0, 0, true, "");
+        },
+        function () {
+          return new Loot("Bagel", 0, 3, 0, 0, 0, true, "");
+        },
+        function () {
+          return new Loot("Pebble", 0, 0, 1, 0, 0, false, "");
+        },
+        function () {
+          return new Loot("Stick", 0, 0, 1, 0, 0, false, "");
+        },
+        function () {
+          return new Loot("Broken Shield", 0, 0, 0, 1, 0, false, "");
+        },
+        function () {
+          return new Loot(
+            "Bucket",
+            0,
+            0,
+            0,
+            1,
+            0,
+            false,
+            "you can use it as a helmet"
+          );
+        },
+        function () {
+          return new Loot(
+            "Life Crystal Shard",
+            0,
+            0,
+            0,
+            0,
+            1,
+            true,
+            "Definitely not from Terraria Lite!"
+          );
+        },
+        function () {
+          return new Loot("Lesser Healing Potion", 0, 15, 0, 0, 0, true, "");
+        },
+        function () {
+          return new Loot(
+            "Sweet Roll",
+            0,
+            5,
+            0,
+            0,
+            0,
+            true,
+            "Lemme guess...you got this sweetroll from someone"
+          );
+        }, //elder scroll V ref
+      ],
+      //rare
+      [
+        function () {
+          return new Loot("Shiny Blade", 1, 0, 5, 0, 0, false, "");
+        },
+        function () {
+          return new Loot(
+            "Mana Potion",
+            1,
+            0,
+            1,
+            0,
+            0,
+            true,
+            "Increases Magic Power"
+          );
+        },
+        function () {
+          return new Loot("Health Potion", 1, 50, 0, 0, 0, true, "");
+        },
+        function () {
+          return new Loot(
+            "Life Crystal",
+            1,
+            0,
+            0,
+            0,
+            10,
+            true,
+            "Definitely not from Terraria!"
+          );
+        },
+        function () {
+          return new Loot("Empty Pistol", 1, 0, 6, 0, 0, false, ""); //Undertale ref
+        },
+        function () {
+          return new Loot("Sturdy Shield", 1, 0, 0, 2, 0, false, "");
+        },
+      ],
+      //epic
+      [
+        function () {
+          return new Loot("Tactical Shotgun", 2, 0, 10, 0, 0, false, "");
+        },
+        function () {
+          return new Loot("Body Armor", 2, 0, 0, 5, 10, false, "");
+        },
+        function () {
+          return new Loot(
+            "Spiked Shield",
+            2,
+            0,
+            2,
+            3,
+            0,
+            false,
+            "Spikes on your shield! Why not?"
+          );
+        },
+        function () {
+          return new Loot("Attack Potion", 2, 0, 5, 0, 0, true, "");
+        },
+        function () {
+          return new Loot(
+            "Rejuvenation Potion",
+            2,
+            player.hpMax,
+            0,
+            0,
+            0,
+            true,
+            "We are gonna be rich!"
+          ); //lol another Hearthstone ref
+        },
+      ],
+      //legendary
+      [
+        function () {
+          return new Loot("Excalibur", 3, 0, 15, 0, 0, false, "");
+        },
+        function () {
+          return new Loot(
+            "Holy Aegis",
+            3,
+            0,
+            0,
+            15,
+            20,
+            false,
+            "You feel protected"
+          );
+        },
+        function () {
+          return new Loot(
+            "Golden Apple",
+            3,
+            50,
+            5,
+            5,
+            5,
+            true,
+            "Tastes like gold"
+          );
+        },
+        function () {
+          return new Loot(
+            "Equipment Upgrade",
+            3,
+            0,
+            0,
+            0,
+            0,
+            true,
+            "You can equip more items now!"
+          );
+        },
+      ],
+      [
+        //Developer Weapon
+        function () {
+          return new Loot(
+            "Ban Hammer",
+            4,
+            0,
+            999,
+            0,
+            0,
+            false,
+            "Yeets thy enemies"
+          );
+        },
+      ],
+    ];
+
+    /*
+    Generate Random loot in tile
+    rareMulti will increase the chance of getting rare items, 0 for always, 1 for normal
+    rareMulti is related to enemyrarity
+    higher the rarity, higher the chance of getting a rare item
+    */
+    function lootGen(itemList, rareMulti) {
+      //add some easter eggs
+      //only trigger when adding the list that completes the requirement
+      if (itemList.length >= 5 && Math.floor(Math.random() * 10000) == 5003)
+        return itemList[4][Math.floor(Math.random() * itemList[4].length)]();
+
+      let prob = Math.floor(Math.random() * 101); //get a number from 0 to 100
+      if (prob < 80 * rareMulti)
+        return itemList[0][Math.floor(Math.random() * itemList[0].length)]();
+      //returns a random item from the common items
+      else if (prob < 95 * rareMulti)
+        return itemList[1][Math.floor(Math.random() * itemList[1].length)]();
+      else if (prob < 99 * rareMulti)
+        return itemList[2][Math.floor(Math.random() * itemList[2].length)]();
+      else return itemList[3][Math.floor(Math.random() * itemList[3].length)]();
+    }
+
+    /*
+    Constructor for enemies
+    */
+    function Enemy(name, rarity, hp, atk, def) {
+      this.name = name;
+      this.rarity = rarity;
+      this.hp = hp;
+      this.atk = atk;
+      this.def = def;
+      //add a random loot to the enemy
+      this.loot = function () {
+        var loots = [];
+        var lootMult = Math.floor(Math.random() * rarity);
+        //if a mob is rarer, it has a higher chance to drop multiple loots
+        for (var i = 0; i < 1 + 0.4 * lootMult; i++)
+          loots.push(lootGen(lootList, 1 - rarity * 0.15));
+
+        return loots;
+      };
+    }
+
+    /*
+    A list of enemy generating functions
+    template: function () {
+          return new Enemy(name, rarity, hp, atk, def);}
+    */
+    var enemiesList = [
+      //Enemies also have tiers like common, rare, epic, and legendary(Boss)
+      [
+        //common enemies
+        function () {
+          return new Enemy("Blue Slime", 0, 20, 2, 0);
+        },
+        function () {
+          return new Enemy("Green Slime", 0, 25, 2, 0);
+        },
+        function () {
+          return new Enemy("Yellow Slime", 0, 20, 2, 1);
+        },
+        function () {
+          return new Enemy("Goblin", 0, 20, 2, 2);
+        },
+        function () {
+          return new Enemy("Chicken", 0, 10, 5, 0);
+        },
+      ],
+      [
+        //rare enemies
+        function () {
+          return new Enemy("Zombie", 1, 50, 2, 1);
+        },
+        function () {
+          return new Enemy("Jelloman", 1, 15, 10, 0); // ref my friend geloman
+        },
+        function () {
+          return new Enemy("Owl Bird", 1, 22, 5, 1); // ref my friend albert
+        },
+        function () {
+          return new Enemy("Red Slime", 1, 20, 2, 2);
+        },
+        function () {
+          return new Enemy("Orange Slime", 1, 40, 1, 1);
+        },
+        function () {
+          return new Enemy("Python", 1, 45, 4, 1); //def not a ref to the programming language
+        },
+      ],
+      [
+        //epic enemies
+        function () {
+          return new Enemy("Demon", 2, 66, 6, 6);
+        },
+        function () {
+          return new Enemy("Ebony Slime", 2, 75, 5, 15);
+        },
+        function () {
+          return new Enemy("Crimson Slime", 2, 35, 15, 5);
+        }, //terraria calamity mod ref
+        function () {
+          return new Enemy(
+            "Copycat",
+            2,
+            player.hpMax,
+            Math.max(player.atk - 5, 0),
+            Math.max(player.def - 5, 0)
+          );
+        },
+      ],
+      [
+        //boss enemeis
+        function () {
+          return new Enemy("Dragon", 3, 200, 15, 25);
+        },
+        function () {
+          return new Enemy("Unicorn", 3, 120, 25, 3);
+        },
+        function () {
+          return new Enemy("Void Lord", 3, 666, 3, 9); //Hearthstone ref
+        },
+      ],
+      [
+        //You found the easter egg!
+        function () {
+          return new Enemy("Q W", 4, 999, player.def + 9, 9);
+        },
+        function () {
+          return new Enemy("Professor K", 4, 5003, 20, 20);
+        },
+      ],
+    ];
+
+    //a constructor for creating map tiles
+    //different tile have different resources
+    function MapTiles(tileType) {
+      this.loot = [];
+      this.enemies = [];
+      switch (tileType) {
+        case "grass":
+          this.name = "grass";
+          this.color = "#90EE90";
+          break;
+        case "stone":
+          this.name = "stone";
+          this.color = "#808080";
+          break;
+        case "enemy":
+          this.name = "enemy";
+          this.color = "#DC143C";
+          //add a random anemy to the tile
+          this.enemies.push(lootGen(enemiesList, 1));
+          break;
+        case "treasure":
+          this.name = "treasure";
+          this.color = "#FFD700";
+          //treasure block contains one free loot
+          this.loot.push(lootGen(lootList, 1));
+          break;
+        default:
+          //using an alert instead of try catch since it is simpler
+          alert("Unknown tile type!");
+      }
+    }
+
+    //Generate random tiles for map
+    //enter the probability of certain tile percent out of 100
+    //like 60 for 60%
+    function getRandTile(grassP, mineP, enemyP, treasureP) {
+      let prob = Math.random();
+      let totalP = grassP + mineP + enemyP + treasureP;
+
+      if (prob < grassP / totalP) return new MapTiles("grass");
+      else if (prob < (grassP + mineP) / totalP) return new MapTiles("stone");
+      else if (prob < (grassP + mineP + enemyP) / totalP)
+        return new MapTiles("enemy");
+      else return new MapTiles("treasure");
+    }
+
+    //create a map for the game
+    //width and height are in blocks/tiles
+    function createMap(width, height) {
+      var map = [];
+      for (var i = 0; i < height; i++) {
+        //add a new row to the map
+        map.push([]);
+        for (var j = 0; j < width; j++) {
+          //add a single tile to that row
+          map[i].push(getRandTile(80, 15, 4, 1));
+        }
+      }
+      return map;
+    }
+
+    /*
+      Draw the map to the canvas
+      following the tutorial on: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D
+    */
+    function drawMap(map, context, canvas, player) {
+      //clear canvas before drawing
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      //the side length of the map tile
+      //uses spread the blocks evenly across the map canvas
+      let blockLength = canvas.width / map[0].length;
+
+      var currX = 0;
+      var currXTile = 0;
+      var currY = 0;
+      var currYTile = 0;
+
+      for (row of map) {
+        for (tile of row) {
+          context.fillStyle = tile.color;
+          context.fillRect(currX, currY, blockLength, blockLength);
+          context.strokeRect(currX, currY, blockLength, blockLength);
+
+          //if player is on that tile, draw it
+          if (player.xcoord == currXTile && player.ycoord == currYTile) {
+            context.beginPath();
+            //draw player on the center of that tile
+            context.arc(
+              currX + blockLength / 2,
+              currY + blockLength / 2,
+              blockLength / 4,
+              0,
+              Math.PI * 2,
+              false
+            );
+            context.fillStyle = player.color;
+            context.fill();
+            context.closePath();
+          }
+
+          //add the side to move to the next block
+          currX += blockLength;
+          currXTile++;
+        }
+        //restart from the left side
+        currX = 0;
+        currXTile = 0;
+        //add side to move to the next row
+        currY += blockLength;
+        currYTile++;
+      }
+    }
+
+    //Helper method to search an item in backpack
+    function searchBackpack(item, backpack) {
+      //loop through the backpack
+      for (var i = 0; i < backpack.length; i++) {
+        //if found, return the index
+        if (backpack[i][0].name == item.name) return i;
+      }
+      //if not found
+      return -1;
+    }
+
+    /*
+    The player object
+    */
+    var player = {
+      color: "#1E90FF",
+      //player's coordinate is in tiles
+      xcoord: 0,
+      ycoord: 0,
+      hp: 100,
+      hpMax: 100,
+      atk: 5,
+      def: 0,
+      equipment: [],
+      //array of [items and number of items]
+      backpack: [],
+      addItem: function (item) {
+        var isVowel = false;
+        for (vowel of ["a", "e", "i", "o", "u"]) {
+          //detect the vowels of items
+          if (item.name.charAt(0) == vowel.toUpperCase()) {
+            isVowel = true;
+            break;
+          }
+        }
+        var itemMsg = "You got ";
+        //use an if it is a vowel
+        if (isVowel) itemMsg += "an ";
+        else itemMsg += "a ";
+
+        printMsg(itemMsg + item.name + "!");
+        let itemPair = [item, 1];
+        itemIndex = searchBackpack(item, this.backpack);
+        //printMsg(" adding " + item.name + " to index " + itemIndex);
+
+        //if there is an existing item, +1 to the item count
+        if (itemIndex != -1) this.backpack[itemIndex][1]++;
+        else this.backpack.push(itemPair);
+        //printMsg("current Backpack: " + this.backpack.toString());
+      },
+    };
+
+    /*
+    See if player is hitting the boundary
+    
+    */
+    function validateMove(player, key) {
+      let map = game.map;
+      switch (key) {
+        case "ArrowUp":
+          return player.ycoord - 1 >= 0;
+          break;
+        case "ArrowDown":
+          return player.ycoord + 1 < map.length;
+          break;
+        case "ArrowLeft":
+          return player.xcoord - 1 >= 0;
+          break;
+        case "ArrowRight":
+          return player.xcoord + 1 < map[player.ycoord].length;
+          break;
+      }
+    }
+
+    /*
+    Listen for user's arrow keys
+    
+    Event listener tutorial:
+    https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
+    
+    Disable scrolling stackoverflow:
+    https://stackoverflow.com/questions/8916620/disable-arrow-key-scrolling-in-users-browser/8916697
+    */
+    document.addEventListener("keydown", (e) => {
+      switch (e.key) {
+        case "ArrowUp":
+          e.preventDefault();
+          if (validateMove(player, e.key)) player.ycoord--;
+          game.update();
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          if (validateMove(player, e.key)) player.ycoord++;
+          game.update();
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          if (validateMove(player, e.key)) player.xcoord--;
+          game.update();
+          break;
+        case "ArrowRight":
+          e.preventDefault();
+          if (validateMove(player, e.key)) player.xcoord++;
+          game.update();
+          break;
+        case " ":
+        case "Spacebar":
+          e.preventDefault();
+          interact();
+          break;
+        case "n":
+        case "N":
+          e.preventDefault();
+          nextMap();
+          break;
+      }
+    });
+
+    //Helper function to print the message
+    //Inspired from https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key
+    function printMsg(msg) {
+      document.getElementById("textOutput").innerHTML += msg + "<br>";
+    }
+
+    //Helper function that clears the output
+    function clearMsg() {
+      document.getElementById("textOutput").innerHTML = "";
+    }
+
+    /*Compute battle with enemy, turn by turn, player go first*/
+    function battle(enemies) {
+      for (enemy of enemies) {
+        while (enemy.hp > 0) {
+          //check if player has died from the battle, if so end the battle
+          if (player.hp <= 0) {
+            return;
+          }
+
+          //player fo first
+          //also force 1 damage if the attack is too low to prevent stalemate
+          let yourDmg = Math.max(player.atk - enemy.def, 1);
+          enemy.hp -= yourDmg;
+          printMsg("You dealt " + yourDmg + " damage to " + enemy.name + "!");
+
+          //check if enemy has died from the battle, if so end this battle
+          if (enemy.hp <= 0) {
+            break;
+          }
+          //Enemy go next
+          let enemyDmg = Math.max(enemy.atk - player.def, 1);
+          player.hp -= enemyDmg;
+          printMsg(enemy.name + " dealt " + enemyDmg + " damage to you!");
+        }
+
+        //claim loot
+        for (enemyLoot of enemy.loot()) {
+          announce(enemyLoot.rarity);
+          player.addItem(enemyLoot);
+        }
+        //get score for killing a monster
+        game.score += 25 * (1 + enemy.rarity);
+      }
+    }
+
+    /*
+    Player interacts with the current tile
+    
+    */
+    function interact() {
+      clearMsg();
+      var currentTile = game.map[player.ycoord][player.xcoord];
+
+      switch (currentTile.name) {
+        case "enemy":
+          battle(currentTile.enemies);
+          //the player will take the resource, leaving the tile empty
+          game.map[player.ycoord][player.xcoord] = new MapTiles("grass");
+          break;
+        case "treasure":
+          //add loot if it is a treasure room
+          //DEBUG: test audio
+          if (debug) {
+            announce(4);
+            player.addItem(lootList[4][0]());
+          }
+
+          for (loot of currentTile.loot) {
+            announce(loot.rarity);
+            player.addItem(loot);
+            game.score += 5;
+          }
+
+          //the player will take the resource, leaving the tile empty
+          game.map[player.ycoord][player.xcoord] = new MapTiles("grass");
+
+          break;
+        default:
+          printMsg(
+            "You tried to interact with " +
+              currentTile.name +
+              ", but it did not respond."
+          );
+      }
+
+      game.update();
+    }
+
+    function produceListItem(itemList) {
+      let innerHtml = "";
+      var itemIndex = 0;
+      for (items of itemList) {
+        let item = items[0];
+        innerHtml +=
+          '<button type="button" class="list-group-item list-group-item-action p-1';
+
+        //add the rarity colors
+        //inspired from hearthstone
+        switch (item.rarity) {
+          case 0:
+            innerHtml += "  list-group-item-light";
+            break;
+          case 1:
+            innerHtml += "  list-group-item-primary";
+            break;
+          case 2:
+            innerHtml += "  list-group-item-epic";
+            break;
+          case 3:
+            innerHtml += "  list-group-item-legendary";
+            break;
+          case 4:
+            innerHtml += "  list-group-item-developer";
+            break;
+        }
+
+        innerHtml += '" data-toggle="tooltip" data-placement="left" title=';
+
+        //add tooltip, after the title=
+        innerHtml += '"';
+        for (attr in item) {
+          var attrStr = "" + attr;
+          attrStr = attrStr.charAt(0).toUpperCase() + attrStr.slice(1);
+          if (attr == "rarity") {
+            //if it is rarity
+            innerHtml += attrStr + ": ";
+            switch (item[attr]) {
+              case 0:
+                innerHtml += "Common";
+                break;
+              case 1:
+                innerHtml += "Rare";
+                break;
+              case 2:
+                innerHtml += "Epic";
+                break;
+              case 3:
+                innerHtml += "Legendary";
+                break;
+              case 4:
+                innerHtml += "???";
+                break;
+            }
+            innerHtml += "\n";
+          } else if (attr == "oneTimeUse") {
+            if (item[attr]) innerHtml += "Consumable";
+            else innerHtml += "Equipment";
+            innerHtml += "\n";
+          } else {
+            if (item[attr] != 0) {
+              innerHtml += attrStr + ": ";
+              innerHtml += item[attr];
+              innerHtml += "\n";
+            }
+          }
+        }
+
+        innerHtml += '"';
+
+        //add double click event
+        innerHtml += 'ondblclick="useItem(' + itemIndex + ", event" + ')"';
+
+        innerHtml += ">";
+
+        //add item name
+        innerHtml += item.name;
+
+        //add amount
+        innerHtml += '\n<span class="badge badge-primary badge-pill">';
+        innerHtml += items[1];
+
+        innerHtml += "</span></button>";
+
+        //update the current index;
+        itemIndex++;
+      }
+      return innerHtml;
+    }
+
+    /*
+    find the item pair in the backpack
+    equip the item if it is not one time use, use it if it is one time use
+    */
+    function useItem(backpackIndex, event) {
+      //DEBUG
+      //printMsg("Current item index in the list: " + backpackIndex + " and the " + event.currentTarget + "called this function. " + event.currentTarget.parentNode.id + " is the parent.");
+      clearMsg();
+      //use parent node to detect whether this is called from myBackpack or my equipment
+      //Reference: https://developer.mozilla.org/en-US/docs/Web/API/Node/parentNode
+      var parentId = event.currentTarget.parentNode.id;
+
+      //if this is called in the backpack, enter equipmode
+      if (parentId == "myBackpack") {
+        //printMsg(player.backpack[backpackIndex][0].name);
+        //retrieve the item
+        var itemPair = player.backpack[backpackIndex];
+        //check if there is too much equipment and the item is an equipment
+        if (
+          !itemPair[0].oneTimeUse &&
+          player.equipment.length >= game.equipmentLimit
+        ) {
+          alert(
+            "You have reached a limit of " +
+              game.equipmentLimit +
+              " pieces of equipment!"
+          );
+          return;
+        }
+
+        //if it is the last item to be used
+        if (itemPair[1] == 1) {
+          //delete it
+          player.backpack.splice(backpackIndex, 1);
+        } else {
+          //reduce the count by 1
+          player.backpack[backpackIndex][1]--;
+        }
+        //equip it if it is an equipment
+        if (!itemPair[0].oneTimeUse) {
+          printMsg("You equipped " + itemPair[0].name + "!");
+          //move the item to equipment
+          //Add it as a new item pair
+          player.equipment.push([itemPair[0], 1]);
+          document.getElementById("myEquipment").innerHTML = produceListItem(
+            player.equipment
+          );
+        } else {
+          //if one time use item
+          printMsg("You used " + itemPair[0].name + "!");
+        }
+
+        //loop through the item effect to trigger it
+        for (attr in itemPair[0]) {
+          //get the value of current attribute
+          var currAttr = itemPair[0][attr];
+          switch (attr) {
+            case "hpBoost":
+              player.hp += currAttr;
+              //also check if hp is over the max
+              if (player.hp > player.hpMax) player.hp = player.hpMax;
+              break;
+            case "atkBoost":
+              player.atk += currAttr;
+              break;
+            case "defBoost":
+              player.def += currAttr;
+              break;
+            case "maxHpBoost":
+              player.hp += currAttr;
+              player.hpMax += currAttr;
+              break;
+          }
+        }
+
+        //special items
+        //Equipment Upgrade provides an extra equipment slot
+        if (itemPair[0].name == "Equipment Upgrade") game.equipmentLimit++;
+      } else if (parentId == "myEquipment") {
+        //retrieve the item
+        var itemPair = player.equipment[backpackIndex];
+        //enter unequip mode
+        player.equipment.splice(backpackIndex, 1);
+
+        //undo the buffs
+        //loop through the item effect to trigger it
+        for (attr in itemPair[0]) {
+          //get the value of current attribute
+          var currAttr = itemPair[0][attr];
+          switch (attr) {
+            case "hpBoost":
+              //currently not considering reduce health by unequipping
+              //player.hp -= currAttr;
+              break;
+            case "atkBoost":
+              player.atk -= currAttr;
+              break;
+            case "defBoost":
+              player.def -= currAttr;
+              break;
+            case "maxHpBoost":
+              //undo the hp to prevent exploit by equipping and unequipping
+              //Only if player is healthy enough
+              //should not be killed by this
+              if (player.hp > currAttr) player.hp -= currAttr;
+              //will undo the max hp
+              player.hpMax -= currAttr;
+              //also check if hp is over the max
+              if (player.hp > player.hpMax) player.hp = player.hpMax;
+              break;
+          }
+        }
+
+        //update the equipment
+        document.getElementById("myEquipment").innerHTML = produceListItem(
+          player.equipment
+        );
+
+        //player get the item back in their pack
+        player.addItem(itemPair[0]);
+      }
+
+      game.update();
+    }
+
+    function getEnemyInfo(tile) {
+      var enemyText = "";
+      for (enemy of tile.enemies) {
+        enemyText += "[";
+        //use another loop to loop through its stats
+        for (attr in enemy) {
+          //ignore loot and rarity info
+          if (attr != "loot" && attr != "rarity") {
+            var attrStr = "" + attr;
+            attrStr = attrStr.charAt(0).toUpperCase() + attrStr.slice(1);
+            enemyText += attrStr + ": ";
+            enemyText += enemy[attr];
+            enemyText += "; ";
+          }
+        }
+        enemyText += "] ";
+      }
+      return enemyText;
+    }
+
+    /*
+    The game variable, stores the map
+    Also updates it
+    */
+    var game = {
+      width: 14,
+      height: 8,
+      equipmentLimit: 3,
+      map: createMap(14, 8),
+      update: function () {
+        //check if the player is deaseased
+        if (player.hp <= 0) {
+          alert("Your character deceased! \nResetting the game...");
+          this.restart();
+        }
+
+        //update the canvas to fit inside the window
+        context.canvas.width = window.innerWidth * 0.7;
+        context.canvas.height =
+          context.canvas.width * (this.height / this.width);
+
+        drawMap(this.map, context, canvasEl, player);
+
+        //score
+        document.getElementById("score").textContent = this.score;
+
+        //HP
+        //Bar animation reference: https://stackoverflow.com/questions/21182058/dynamically-change-bootstrap-progress-bar-value-when-checkboxes-checked
+        var hpBar = document.getElementById("hp");
+        hpBar.setAttribute("aria-valuenow", player.hp);
+        hpBar.setAttribute("aria-valuemax", player.hpMax);
+        hpBar.setAttribute(
+          "style",
+          "width:" + (player.hp / player.hpMax) * 100 + "%"
+        );
+        document.getElementById("hp").textContent =
+          player.hp + "/" + player.hpMax;
+
+        //ATK and DEF
+        document.getElementById("atk").textContent = player.atk;
+        document.getElementById("def").textContent = player.def;
+
+        //draw the list of items
+        document.getElementById("myBackpack").innerHTML = produceListItem(
+          player.backpack
+        );
+
+        //draw the equipment
+        document.getElementById("myEquipment").innerHTML = produceListItem(
+          player.equipment
+        );
+        //update the count
+        document.getElementById("equipCount").textContent =
+          " (" + player.equipment.length + "/" + this.equipmentLimit + ")";
+
+        //update the current enemy
+        var currEnemyEl = document.getElementById("currentEnemy");
+        //first check if player is on an enemy tile
+        var currTile = this.map[player.ycoord][player.xcoord];
+        if (currTile.name == "enemy") {
+          currEnemyEl.textContent = getEnemyInfo(currTile);
+        } else {
+          //if not, say none
+          currEnemyEl.textContent = "None";
+        }
+      },
+      score: 0,
+      restart: function () {
+        this.map = createMap(this.width, this.height);
+        this.score = 0;
+        this.equipmentLimit = 3;
+        player.xcoord = 0;
+        player.ycoord = 0;
+        player.hp = 100;
+        player.hpMax = 100;
+        player.atk = 5;
+        player.def = 0;
+        player.equipment = [];
+        player.backpack = [];
+        clearMsg();
+      },
+    };
+
+    function nextMap() {
+      game.score -= 25;
+      game.map = createMap(game.width, game.height);
+      player.xcoord = 0;
+      player.ycoord = 0;
+      game.update();
+    }
+
+    //DEBUG: Currently buggy
+    //Initialize tooltip
+    //Reference: https://getbootstrap.com/docs/4.5/components/tooltips/
+    //$(function () {
+    //  $('[data-toggle="tooltip"]').tooltip();
+    //});
+
+    //debug
+    //player.addItem(lootList[4][0]());
+    //player.addItem(lootList[3][3]());
+    //player.addItem(lootList[2][0]());
+    //player.addItem(lootList[1][0]());
+    //player.addItem(lootList[0][1]());
+
+    game.update();
+  </script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.5.3/js/bootstrap.min.js"></script>
+</body>

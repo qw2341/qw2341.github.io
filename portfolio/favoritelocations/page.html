@@ -1,0 +1,602 @@
+<head>
+  <style>
+    .map {
+      height: 50em;
+      width: 100%;
+    }
+    .pop {
+      width: 18rem;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container-fluid m-0 p-0" id="app">
+    <div class="row">
+      <div class="col m-0 p-0">
+        <div id="map" class="map"></div>
+      </div>
+      <div class="col-3 m-1 p-1">
+        <h3>Mark Your Favorite Location!</h3>
+        <label for="validationCustomUsername" class="form-label mb-3"
+          >Username</label
+        >
+        <div class="input-group">
+          <input
+            type="text"
+            class="form-control mb-3"
+            v-model="currUser"
+            required
+          />
+          <button class="btn btn-block btn-primary" @click="getUserInfo">
+            Log in
+          </button>
+        </div>
+        <p v-if="loggedIn">Now logged in as: {{currUserInfo.userName}}</p>
+        <form @submit.prevent="submitPlace" class="mb-3">
+          <div class="loc-form" v-if="showingForm">
+            <h5>Add a marker at {{hdms}}</h5>
+            <div class="mb-3">
+              <label for="placeName" class="form-label">Location Name</label>
+              <input
+                type="text"
+                class="form-control"
+                placeholder="Name your favorite place"
+                aria-describedby="Enter the name of your favorite place"
+                v-model="newLocName"
+                required
+              />
+            </div>
+            <div class="mb-3">
+              <label for="placeDesc" class="form-label">Description</label>
+              <textarea
+                class="form-control"
+                aria-label="Description for the place"
+                v-model="newLocDesc"
+              ></textarea>
+            </div>
+            <button class="btn btn-primary" type="submit">Add</button>
+          </div>
+        </form>
+
+        <div class="comments">
+          <div class="list-group">
+            <a
+              href="#"
+              class="list-group-item list-group-item-action"
+              v-if="selectedMarker"
+              v-for="com in currentMarker.comments"
+            >
+              <div class="d-flex w-100 justify-content-between">
+                <h5 class="mb-1">{{com.userName}}</h5>
+                <small></small>
+              </div>
+              <p class="mb-1">{{com.comment}}</p>
+              <small>{{getAgo(com.timestamp)}}</small>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+<!-- The core Firebase JS SDK is always required and must be listed first -->
+<script src="https://www.gstatic.com/firebasejs/8.3.2/firebase-app.js"></script>
+
+<!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#available-libraries -->
+<script src="https://www.gstatic.com/firebasejs/8.3.2/firebase-firestore.js"></script>
+
+<script>
+  // Your web app's Firebase configuration
+  var firebaseConfig = {
+    apiKey: "AIzaSyDtEKIbquAniBxP3Y87i-IXdhe3hXy-nCc",
+    authDomain: "mstu5013-cityofdata-qw2341.firebaseapp.com",
+    projectId: "mstu5013-cityofdata-qw2341",
+    storageBucket: "mstu5013-cityofdata-qw2341.appspot.com",
+    messagingSenderId: "1045441556510",
+    appId: "1:1045441556510:web:e39751f248f5f3b777fe0f",
+  };
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.11/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.5.0/build/ol.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+
+<script>
+  /*
+    A Map Marker Placer
+    by Qingqi Wu
+    using OpenLayers, Firebase, Vue.js, Bootstrap
+    
+    Before using, the user need to login, and for simplicity, I omitted authentication (yes, you can be the imposter by taking on someones name, but pls dont) the user name is stored on firebase under collection users
+    
+    In this marker placer, you can click the map to add your own marker, which will send information containing name, creator name, longitude, latitude, while it also initialize attributes like number of likes and comments
+    
+    users can like and comment under a placed marker by clicking on the marker. The marker can become "hot" (which is having a orange tint) by having more likes.
+    
+    Currently, it's not very completed since we did not learn async funcitons and await, so some scipts will fire before the data is retrieved, causing display errors, like I tried to make like to toggle between like and cancel the like, but it's impossible without async functions or completely rewrite the code with promises (which our current progress did not reach there)
+    */
+
+  //Firestore db
+  let db = firebase.firestore();
+  let usersRef = db.collection("users");
+  let markersRef = db.collection("markers");
+
+  //Map reference
+  var map;
+  var vectorLayer = null;
+  var vectorSource;
+
+  //The debugging bundle
+  var debug = true;
+  function debugLog(log) {
+    if (debug) console.log(log);
+  }
+
+  var loggedIn = false;
+
+  //Vue
+  let app = new Vue({
+    el: "#app",
+    data: {
+      currUser: "",
+      password: "",
+      currUserInfo: {},
+      markers: [],
+      //Marker Layer Ref
+      markersLayer: {},
+      newLocName: "",
+      newLocDesc: "",
+      long: 0,
+      lat: 0,
+      hdms: "",
+      showingForm: false,
+      selectedMarker: false,
+      currentMarker: {},
+      loggedIn: false,
+      isCurrLiked: false,
+    },
+    methods: {
+      getUserInfo() {
+        var curUName = this.currUser;
+        if (curUName == "") {
+          alert("Username cant be empty!");
+        } else {
+          usersRef
+            .where("userName", "==", curUName)
+            .get()
+            .then((querySnapshot) => {
+              if (querySnapshot.empty) {
+                debugLog("User not found, creating");
+                this.createUser();
+                this.getUserInfo(); //recursive call to grab the info we created
+              } else {
+                debugLog("User found! Logging in");
+                var uFound = querySnapshot.docs[0];
+                var uInfo = uFound.data();
+                uInfo.id = uFound.id;
+                this.currUserInfo = uInfo;
+                this.loggedIn = true;
+                debugLog(
+                  `Now loggedIn as ${this.currUserInfo.userName} with an id of ${this.currUserInfo.id}`
+                );
+              }
+            })
+            .catch((e) => {
+              debugLog(
+                `Something happened while fetching user: ${this.currUser}, ${e}`
+              );
+            });
+        }
+      },
+      createUser() {
+        usersRef.add({
+          userName: this.currUser,
+          likedPlace: [],
+          password: this.password,
+        });
+      },
+      clearData() {
+        (this.newLocName = ""), (this.newLocDesc = "");
+        //long and lat are reset when clicking new places
+      },
+      showForm() {
+        this.showingForm = true;
+        popup.setPosition(undefined);
+      },
+
+      /*
+        Using the code from https://stackoverflow.com/questions/6108819/javascript-timestamp-to-relative-time
+        Too lazy to write my own so I just slightly modified their code to fit firebase timestamp
+        */
+      getAgo(timestamp) {
+        var sPerMinute = 60;
+        var sPerHour = sPerMinute * 60;
+        var sPerDay = sPerHour * 24;
+        var sPerMonth = sPerDay * 30;
+        var sPerYear = sPerDay * 365;
+
+        var elapsed = Date.now() / 1000 - timestamp.seconds;
+
+        if (elapsed < sPerMinute) {
+          return Math.round(elapsed) + " second(s) ago";
+        } else if (elapsed < sPerHour) {
+          return Math.round(elapsed / sPerMinute) + " minute(s) ago";
+        } else if (elapsed < sPerDay) {
+          return Math.round(elapsed / sPerHour) + " hour(s) ago";
+        } else if (elapsed < sPerMonth) {
+          return (
+            "approximately " + Math.round(elapsed / sPerDay) + " day(s) ago"
+          );
+        } else if (elapsed < sPerYear) {
+          return (
+            "approximately " + Math.round(elapsed / sPerMonth) + " month(s) ago"
+          );
+        } else {
+          return (
+            "approximately " + Math.round(elapsed / sPerYear) + " year(s) ago"
+          );
+        }
+      },
+      showComments() {},
+      //Grab data from firebase
+      grabMarkerData() {
+        //empty the array first
+        this.markers = [];
+        markersRef
+          .get()
+          .then((snap) => {
+            debugLog(
+              "Grabbed the Snapshot! Now pushing the data into the markers table"
+            );
+            snap.forEach((doc, index) => {
+              var mark = doc.data();
+              mark.id = doc.id;
+              this.markers.push(mark);
+            });
+            //refresh after the data have been fetched
+            this.refreshMarkers();
+          })
+          .catch((e) => {
+            console.log("Encountered error while fetching the document:", e);
+          });
+      },
+      //create the vector layer for the markers
+      refreshMarkers() {
+        var features = [];
+        debugLog(`Creating ${this.markers.length} Markers!`);
+        this.markers.forEach((marker) => {
+          var feature = new ol.Feature({
+            geometry: new ol.geom.Point(
+              ol.proj.fromLonLat([marker.long, marker.lat])
+            ),
+            mark: marker,
+          });
+          var likes = marker.likes;
+          //debugLog(`Creating style for marker: ${marker.name}`);
+          //It will be redder with more likes, starting from yellow to orange
+          var fillColor = `rgb(255,${Math.max(255 - likes, 64)},0)`;
+          var style = new ol.style.Style({
+            image: new ol.style.Circle({
+              fill: new ol.style.Fill({
+                color: fillColor,
+              }),
+              stroke: new ol.style.Stroke({
+                width: 1,
+                color: "black",
+              }),
+              radius: 5,
+            }),
+            text: new ol.style.Text({
+              text: marker.name,
+              fill: new ol.style.Fill({ color: "black" }),
+              stroke: new ol.style.Stroke({ color: fillColor, width: 1 }),
+            }),
+          });
+          feature.setStyle(style);
+          features.push(feature);
+          //debugLog(`Added Marker at Long:${marker.long}, Lat:${marker.lat}!`);
+        });
+
+        //Create the layer with the markers
+        this.markersLayer = new ol.layer.Vector({
+          source: new ol.source.Vector({
+            features: features,
+          }),
+        });
+        //save the pointer
+        if (vectorLayer != null) map.removeLayer(vectorLayer);
+        vectorLayer = this.markersLayer;
+        vectorSource = this.markersLayer.getSource();
+
+        //place them on map
+        map.addLayer(this.markersLayer);
+      },
+      submitPlace() {
+        if (this.loggedIn) {
+          markersRef
+            .add({
+              comments: [],
+              createdBy: this.currUser,
+              name: this.newLocName,
+              desc: this.newLocDesc,
+              likes: 0,
+              lat: this.lat,
+              long: this.long,
+            })
+            .then(() => {
+              debugLog(`${this.newLocName} Added to Firebase!`);
+              this.clearData();
+              this.showingForm = false;
+            })
+            .catch((e) => {
+              debugLog(`Something went wrong! ` + e);
+            });
+        } else {
+          alert("Please log in first before submitting!");
+        }
+      },
+      didUserLikeThis(placeId) {
+        var likedHere = undefined;
+        var userLikes;
+        usersRef
+          .where("userName", "==", this.currUser)
+          .get()
+          .then((querySnapshot) => {
+            var uFound = querySnapshot.docs[0];
+            this.currUserInfo = uFound.data();
+            userLikes = this.currUserInfo.likedPlace;
+            likedHere = userLikes.includes(placeId);
+          });
+        debugLog(
+          `User liked: ${userLikes}, and they ${
+            likedHere ? "liked" : "didn't liked"
+          } here with a id of ${placeId}`
+        );
+        this.isCurrLiked = likedHere;
+        return likedHere;
+      },
+      getBtnStyle() {
+        return this.isCurrLiked ? "btn-danger liked" : "btn-outline-danger";
+      },
+    },
+    mounted() {
+      //add a listener for real time changes
+      markersRef.onSnapshot((snap) => {
+        //empty the array first
+        this.markers = [];
+        this.currentMarker = {};
+        debugLog(
+          "Data Updated! Now retrieving the data and pushing them into markers"
+        );
+
+        snap.forEach((doc) => {
+          var mark = doc.data();
+          mark.id = doc.id;
+          debugLog(`Adding ${mark.name} to data`);
+          this.markers.push(mark);
+          if (mark.id == this.currentMarker.id) {
+            this.currentMarker = mark;
+            debugLog(
+              `Setting current mark to ${mark.name} with an id of ${mark.id}`
+            );
+          }
+        });
+        //refresh after the data have been fetched
+        this.refreshMarkers();
+      });
+    },
+  });
+
+  //Create the map after Vue element is created
+  //Here I'm using OpenLayer's map since its free :P
+  map = new ol.Map({
+    target: "map",
+    layers: [
+      new ol.layer.Tile({
+        source: new ol.source.OSM(),
+      }),
+    ],
+    view: new ol.View({
+      center: ol.proj.fromLonLat([-73.98, 40.76]),
+      zoom: 12,
+    }),
+  });
+
+  //return the closest marker from the click
+  function getClosestMarker(coord) {
+    var vs = new ol.source.Vector();
+    vs.addFeatures(vectorSource.getFeatures());
+
+    return vs.getClosestFeatureToCoordinate(coord).get("mark");
+  }
+
+  //create markers
+  //app.grabMarkerData();
+
+  /*
+    Create the popup based on whether it's already marked or not
+    */
+  function createPopEl(isNew, prop) {
+    var popEl;
+    if (isNew) {
+      popEl = document.createElement("div");
+      popEl.className = "card pop text-dark bg-light";
+      popEl.innerHTML = `<div class="card-body">
+        <h5 class="card-title">Add a new favorite place?</h5>
+        <p class="card-text">
+        Location Clicked: ${ol.coordinate.toStringHDMS(prop)}</p>
+        <button class="btn btn-primary" onclick="app.showForm()">Sure</button>
+      </div>`;
+    } else {
+      var curMark = app.$data.currentMarker;
+      app.didUserLikeThis(curMark.id);
+      var btnStyle = app.getBtnStyle();
+      debugLog(`Current btn style: ${btnStyle}`);
+      popEl = document.createElement("div");
+      popEl.className = "card pop text-dark bg-light";
+      popEl.innerHTML = `
+      <div class="card-body">
+        <h5 class="card-title">${prop.name}</h5>
+        <p class="card-text">
+        Created by: ${prop.createdBy}</p>
+        <p>${prop.desc}</p>
+        <button class="btn btn-block ${btnStyle}" onclick="likeThis(event)"><i class="far fa-heart"></i> Like</button>
+        <p class="card-text text-center" >${prop.likes} people liked this</p>
+        <form id="comment">
+        <textarea class="form-control mb-3" aria-label="Comment for the place" id="newcomment"></textarea>
+        <button class="btn btn-primary" type="submit">Comment</button>
+        </form>
+      </div>`;
+    }
+
+    return popEl;
+  }
+
+  var popup = new ol.Overlay({
+    element: null,
+  });
+  map.addOverlay(popup);
+
+  function updatePopup() {
+    var pos = popup.getPosition();
+    var curMark = app.$data.currentMarker;
+    app.didUserLikeThis(curMark.id);
+    var btnStyle = app.getBtnStyle();
+    var popEl = document.createElement("div");
+    popEl.className = "card pop text-dark bg-light";
+    popEl.innerHTML = `
+      <div class="card-body">
+        <h5 class="card-title">${curMark.name}</h5>
+        <p class="card-text">
+        Created by: ${curMark.createdBy}</p>
+        <button class="btn btn-block ${btnStyle}" onclick="likeThis(event)"><i class="far fa-heart"></i> Like</button>
+        <p class="card-text text-center" >${curMark.likes} people liked this</p>
+        <form id="comment">
+        <textarea class="form-control mb-3" aria-label="Comment for the place" id="newcomment"></textarea>
+        <button class="btn btn-primary" type="submit">Comment</button>
+        </form>
+      </div>`;
+    popup.setPosition(undefined);
+    popup.setElement(popEl);
+    popup.setPosition(pos);
+  }
+
+  //funciton for map to add markers
+  map.on("singleclick", function (e) {
+    if (app.$data.loggedIn) {
+      app.$data.showingForm = false;
+      var coordinate = e.coordinate;
+
+      if (map.hasFeatureAtPixel(e.pixel) === true) {
+        var closeMarker = getClosestMarker(coordinate);
+        debugLog(`Got the Marker: ${closeMarker.name}`);
+        app.$data.currentMarker = closeMarker;
+        app.$data.selectedMarker = true;
+        popup.setElement(createPopEl(false, closeMarker));
+        initComment();
+        popup.setPosition(coordinate);
+      } else {
+        app.$data.selectedMarker = false;
+        if (popup.getPosition() !== undefined) {
+          popup.setPosition(undefined);
+        } else {
+          var lonLat = ol.proj.toLonLat(coordinate);
+          app.$data.hdms = ol.coordinate.toStringHDMS(lonLat);
+          app.$data.long = lonLat[0];
+          app.$data.lat = lonLat[1];
+
+          popup.setElement(createPopEl(true, lonLat));
+          popup.setPosition(coordinate);
+        }
+      }
+    } else {
+      alert("Please log in first before adding places");
+    }
+  });
+
+  var commentForm;
+  var commentText;
+  function initComment() {
+    commentForm = document.getElementById("comment");
+    commentText = commentForm.querySelector("#newcomment");
+    commentForm.addEventListener("submit", addComment);
+  }
+
+  function addComment(e) {
+    e.preventDefault();
+    if (app.$data.loggedIn) {
+      var com = commentText.value;
+      var currId = app.$data.currentMarker.id;
+      markersRef.doc(currId).update({
+        comments: firebase.firestore.FieldValue.arrayUnion({
+          comment: com,
+          timestamp: firebase.firestore.Timestamp.now(),
+          userName: app.$data.currUser,
+        }),
+      });
+      popup.setPosition(undefined);
+    } else {
+      alert("Please log in first before commenting!");
+    }
+  }
+
+  /*
+    
+    */
+  function likeThis(e) {
+    if (app.$data.loggedIn) {
+      var tar = e.currentTarget;
+      debugLog(
+        `Liked ${app.$data.currentMarker.name}! Current event target: ${e.target}`
+      );
+      // tar.classList.toggle('liked');
+      // tar.classList.toggle('btn-outline-danger');
+      // tar.classList.toggle('btn-danger');
+      var currId = app.$data.currentMarker.id;
+      var currU = app.$data.currUserInfo.id;
+      if (!app.didUserLikeThis(currId)) {
+        //liked
+        debugLog(`Liked!`);
+        markersRef.doc(currId).update({
+          likes: firebase.firestore.FieldValue.increment(1),
+        });
+        usersRef
+          .doc(currU)
+          .update({
+            likedPlace: firebase.firestore.FieldValue.arrayUnion(currId),
+          })
+          .then(() => {
+            debugLog(`Successfully liked place of id="${currId}"`);
+          })
+          .catch((e) => {
+            debugLog(`Something went wrong while liking, ${e}`);
+          });
+      } else {
+        //Unliked
+        debugLog(`Unliked!`);
+        markersRef.doc(currId).update({
+          likes: firebase.firestore.FieldValue.increment(-1),
+        });
+        usersRef
+          .doc(currU)
+          .update({
+            likedPlace: firebase.firestore.FieldValue.arrayRemove(currId),
+          })
+          .then(() => {
+            debugLog(`Successfully unliked place of id="${currId}"`);
+          })
+          .catch((e) => {
+            debugLog(`Something went wrong while unliking, ${e}`);
+          });
+      }
+      //app.grabMarkerData();
+      popup.setPosition(undefined);
+    } else {
+      alert("Please log in first before liking!");
+    }
+  }
+</script>
