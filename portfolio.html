@@ -66,17 +66,22 @@
     <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
-    <script>
-      $.getJSON("get_portfolio_folders.php", function (folders) {
-        folders.forEach((folderName) => {
-          $.getJSON(`portfolio/${folderName}/properties.json`, function (data) {
-            let title = data.TITLE;
-            let description = data.DESCRIPTION;
-            let previewImage = `portfolio/${folderName}/preview.png`;
-            let pageLink = `portfolio/${folderName}/page.html`;
+    <script src="get_portfolio_folders.php"></script>
 
-            // Create card HTML
-            let cardHTML = `
+    <script>
+      function callback(folders) {
+        folders.forEach((folderName) => createCard(folderName));
+      }
+
+      function createCard(folderName) {
+        $.getJSON(`portfolio/${folderName}/properties.json`, function (data) {
+          let title = data.TITLE;
+          let description = data.DESCRIPTION;
+          let previewImage = `portfolio/${folderName}/preview.png`;
+          let pageLink = `portfolio/${folderName}/page.html`;
+
+          // Create card HTML
+          let cardHTML = `
       <div class="card">
         <img src="${previewImage}" alt="${title}">
         <div class="card-body">
@@ -87,11 +92,10 @@
       </div>
     `;
 
-            // Append the card HTML to the portfolio container
-            $("#portfolio-container").append(cardHTML);
-          });
+          // Append the card HTML to the portfolio container
+          $("#portfolio-container").append(cardHTML);
         });
-      });
+      }
     </script>
   </body>
 </html>
