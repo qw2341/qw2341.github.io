@@ -1,0 +1,720 @@
+<html>
+  <head>
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css"
+    />
+    <style>
+      body {
+        background-image: url("https://images.pexels.com/photos/1314541/pexels-photo-1314541.jpeg?auto=compress&cs=tinysrgb&h=750&w=1260");
+        background-repeat: no-repeat;
+        background-position: 50% 50%;
+      }
+
+      .main-body {
+        background-color: rgba(255, 255, 255, 0.85);
+      }
+
+      h2 {
+        font-family: "Pacifico", cursive;
+        font-size: 3em;
+      }
+
+      .num-table {
+        table-layout: fixed;
+        width: 369px;
+        margin: auto;
+      }
+
+      .num-block {
+        /*border: 1px solid #000000;*/
+        font-family: "Pacifico", cursive;
+        padding: 0px !important;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="app">
+      <div class="container">
+        <div class="row main-body">
+          <div class="col p-3">
+            <div class="row text-center">
+              <h2>Sudoku Solver & Generator</h2>
+              <p>
+                Created by Qingqi Wu, using Vue.js and
+                <a href="https://www.geeksforgeeks.org/backtracking-algorithms/"
+                  >Backtracking Algorithms</a
+                >
+              </p>
+              <div class="col">
+                <div class="form-group d-grid d-md-flex justify-content-center">
+                  <select
+                    class="form-select m-1"
+                    v-model="difficulty"
+                    style="width: auto"
+                  >
+                    <option v-for="dif in diffOptions" :value="dif.diff">
+                      {{dif.diff}}
+                    </option>
+                  </select>
+
+                  <button
+                    class="btn btn-outline-secondary m-1"
+                    @click="generateSudoku"
+                    title="Generate a new Sudoku game board"
+                  >
+                    <i class="far fa-plus-square"></i>
+                    Generate
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-outline-success m-1"
+                    data-bs-toggle="button"
+                    @click="toggleHints"
+                    title="Highlight the blocks with only one choice"
+                  >
+                    <i class="far fa-lightbulb"></i> Hints
+                  </button>
+                  <button
+                    class="btn btn-outline-info m-1"
+                    v-if="hints"
+                    @click="fillPossible"
+                    title="Fill in the green blanks for you"
+                  >
+                    <i class="fas fa-robot"></i>
+                    Fill Possible Moves
+                  </button>
+                  <button
+                    class="btn btn-outline-primary m-1"
+                    v-if="hints"
+                    @click="suggestMove"
+                    title="Highlight the cell with fewest choices"
+                  >
+                    <i class="fas fa-question"></i>
+                    Suggest
+                  </button>
+                  <button
+                    class="btn btn-outline-warning m-1"
+                    @click="solveSudoku"
+                    title="Solve the entire table"
+                  >
+                    <i class="fas fa-calculator"></i>
+                    Solve
+                  </button>
+                  <button
+                    class="btn btn-outline-danger m-1"
+                    @click="reset"
+                    title="Reset the whole board"
+                  >
+                    <i class="far fa-trash-alt"></i>
+                    Clear
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="row d-flex justify-content-center">
+              <div class="col">
+                <table class="table table-bordered num-table">
+                  <tr v-for="row in sudokuGame.board">
+                    <td
+                      v-for="col in row"
+                      class="num-block"
+                      :style="getStyle(col)"
+                    >
+                      <num :state="col" :hints="hints"></num>
+                    </td>
+                  </tr>
+                </table>
+                <div class="form-group d-grid d-md-flex justify-content-center">
+                  <button
+                    class="btn btn-secondary m-1"
+                    @click="undoSudoku"
+                    title="Reverse a step"
+                    :disabled="disableUndo"
+                  >
+                    <i class="fas fa-undo"></i>
+                    Undo
+                  </button>
+                  <button
+                    class="btn btn-secondary m-1"
+                    @click="redoSudoku"
+                    title="Undo the undo"
+                    :disabled="disableRedo"
+                  >
+                    <i class="fas fa-redo"></i>
+                    Redo
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+  <footer class="footer mt-auto py-3 bg-light">
+    <div class="container">
+      <span class="text-muted"> Photo by Black ice from Pexels </span>
+    </div>
+  </footer>
+  <link rel="preconnect" href="https://fonts.gstatic.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap"
+    rel="stylesheet"
+  />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/vue/2.6.11/vue.js"></script>
+  <script>
+    /*
+Sudoku Solver and Generator
+by Qingqi Wu
+*updates the available number choices depending on the board
+*becomes red if out of options
+
+*generates sudoku puzzles with your options
+*with hints enabled, cells will turn green if only one option is available, and you can use 'fill possible moves' button to fill in those blanks automatically
+*suggest will suggest a cell with the lowest amount of choices
+*solve will solve the sudoku with the backtracking algorithm
+*pressing clear will clear the whole board for you to input a new sudoku for solving
+
+*Use undo to undo your mistakes
+*Use redo to redo the step
+*/
+
+    //The debugging bundle
+    var debug = false;
+    function debugLog(log) {
+      if (debug) console.log(log);
+    }
+
+    /*
+Represents each individual state of a block in sudoku
+*/
+    class State {
+      constructor(row, col) {
+        this.y = row;
+        this.x = col;
+        this.value = -1;
+        this.lastValue = -1;
+        this.states = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+        this.vNeighbors = [];
+        this.hNeighbors = [];
+        this.bNeighbors = [];
+        this.possible = [];
+        this.locked = false;
+        this.suggested = false;
+        this.error = () => this.states.length <= 0;
+        this.checkValidity = (value) => {
+          //filter out the matches in Neighbor
+          //if not 1-9, false
+          if (this.states.indexOf(value) < 0) return false;
+
+          var validity = true;
+          //hneibghors
+          this.hNeighbors.forEach((hNei) => {
+            if (hNei.value == value) validity = false;
+          });
+          this.vNeighbors.forEach((vNei) => {
+            if (vNei.value == value) validity = false;
+          });
+          this.bNeighbors.forEach((bNei) => {
+            if (bNei.value == value) validity = false;
+          });
+          return validity;
+        };
+      }
+    }
+
+    //create a board with [y][x]
+    //y = row
+    //x = col
+    //board[row][col]
+    //this function creates a 2D array, rest is pretty self explanatory
+    //reusing my function from my other project
+    function createBoard(row, col) {
+      var retArray = [];
+      var tempRow;
+      for (var i = 0; i < row; i++) {
+        tempRow = [];
+        for (var j = 0; j < col; j++) {
+          tempRow.push(new State(i, j));
+        }
+        retArray.push(tempRow);
+      }
+
+      return retArray;
+    }
+
+    /*
+Loops through the board to add the Neighbors
+*/
+    function addNeighbors(board) {
+      for (var i = 0; i < board.length; i++) {
+        for (var j = 0; j < board[i].length; j++) {
+          //for each single number
+          var tempNum = board[i][j];
+          //debugLog(`Adding Neighbor for [${i}][${j}]`);
+          //add horizontal neighbors
+          //I just add the whole line without itself
+          tempNum.hNeighbors = board[i].filter((s) => s !== tempNum);
+
+          //add vertical neighbors
+          //add anything thats not itself in the column
+          for (var vRow = 0; vRow < board.length; vRow++) {
+            if (board[vRow][j] !== tempNum)
+              tempNum.vNeighbors.push(board[vRow][j]);
+          }
+
+          //add the Neighbors in the 3x3 box
+          //determine the offsets
+          var rowOff = i % 3;
+          var colOff = j % 3;
+
+          //determine the section
+          var rowSect = Math.floor(i / 3);
+          var colSect = Math.floor(j / 3);
+
+          //add everything in that section
+          //except itself
+          for (var sRow = 0; sRow < 3; sRow++) {
+            for (var sCol = 0; sCol < 3; sCol++) {
+              if (board[sRow + rowSect * 3][sCol + colSect * 3] !== tempNum)
+                tempNum.bNeighbors.push(
+                  board[sRow + rowSect * 3][sCol + colSect * 3]
+                );
+
+              //debugLog(`Adding Neighbor at [${sRow + rowSect * 3}][${sCol + colSect * 3}]`);
+            }
+          }
+        }
+      }
+    }
+
+    var game = {
+      board: createBoard(9, 9),
+      undoStack: [],
+      undoAdd(moves) {
+        //push an array of moves in to the stack
+        //undo moves are mainly[{x,y,valbefore, val after}, ...]
+        this.undoStack.push(moves);
+        debugLog("Current Undo Stack: " + this.undoStack);
+      },
+      undo() {
+        var recentMove = this.undoStack.pop();
+        var redoMove = [];
+        recentMove.forEach((move) => {
+          this.board[move.y][move.x].value = move.valBefore;
+          debugLog(
+            `Undid the move at [${move.y}],[${move.x}], changed ${move.valAfter} to ${move.valBefore}`
+          );
+          redoMove.push({
+            x: move.x,
+            y: move.y,
+            valBefore: move.valAfter,
+            valAfter: move.valBefore,
+          });
+          this.board[move.y][move.x].lastValue = move.valBefore;
+        });
+        this.redoStack.push(redoMove);
+        updateBoardOptions(this.board);
+      },
+      redoStack: [],
+      redo() {
+        //pretty much reversing the undo
+        var recentUndo = this.redoStack.pop();
+        var undoMove = [];
+        recentUndo.forEach((move) => {
+          this.board[move.y][move.x].value = move.valBefore;
+          debugLog(
+            `Redid the move at [${move.y}],[${move.x}], changed ${move.valAfter} to ${move.valBefore}`
+          );
+          undoMove.push({
+            x: move.x,
+            y: move.y,
+            valBefore: move.valAfter,
+            valAfter: move.valBefore,
+          });
+          this.board[move.y][move.x].lastValue = move.valBefore;
+        });
+        this.undoStack.push(undoMove);
+        updateBoardOptions(this.board);
+      },
+      getTheLowestEntropy() {
+        var lowEntropy = [];
+        this.board.forEach((row) => {
+          row.forEach((col) => {
+            //if it is unsolved
+            if (col.value == -1) {
+              //push in if lowen is empty or it is the same entropy
+              if (
+                lowEntropy.length == 0 ||
+                col.possible.length == lowEntropy[0].possible.length
+              ) {
+                lowEntropy.push(col);
+              } else if (
+                col.possible.length < lowEntropy[0].possible.length &&
+                col.possible.length != 0
+              ) {
+                //if found lower entropy and it is non zero
+                lowEntropy = [];
+                lowEntropy.push(col);
+              }
+            }
+          });
+        });
+
+        //return a random selection from the array
+        return lowEntropy[Math.floor(Math.random() * lowEntropy.length)];
+      },
+      getLowestEntropies() {
+        //returns an array containing those states only containing one possible move
+        var retArr = [];
+        this.board.forEach((row) => {
+          row.forEach((col) => {
+            if (col.possible.length === 1) retArr.push(col);
+          });
+        });
+        return retArr;
+      },
+      init() {
+        this.board = createBoard(9, 9);
+        this.undoStack = [];
+        this.redoStack = [];
+        addNeighbors(this.board);
+        updateBoardOptions(this.board);
+      },
+    };
+
+    /*single cell in the table*/
+    Vue.component("num", {
+      props: ["state", "hints"],
+      data() {
+        return {
+          selectStyle: {
+            "-webkit-appearance": "none",
+            "-moz-appearance": "none",
+            appearance: "none",
+            backgroundImage: "none",
+            padding: "0.375rem 0.75rem 0.375rem 0.75rem",
+            width: "2.5em",
+            height: "2.5em",
+            fontSize: "1em",
+            textAlign: "center",
+            border: "none",
+            borderRadius: "0",
+          },
+        };
+      },
+      template: `<select class="form-select num-select" aria-label="num select" width="10px" v-model.number="state.value" @change='changeOpt' :class="currState()" :style='selectStyle' :disabled='state.locked'>
+  <option value="-1" selected> </option>
+  <option v-for="val in this.state.possible" :value="val">{{val}}</option>
+  </select>`,
+      methods: {
+        changeOpt() {
+          //triggered after manually change a value
+          debugLog(
+            "Changed Value from " +
+              this.state.lastValue +
+              " to " +
+              this.state.value
+          );
+          //add to undo stack
+          game.undoAdd([
+            {
+              x: this.state.x,
+              y: this.state.y,
+              valBefore: this.state.lastValue,
+              valAfter: this.state.value,
+            },
+          ]);
+
+          //update last after recording
+          this.state.lastValue = this.state.value;
+
+          debugLog("Updating!");
+
+          //clear redostack
+          game.redoStack = [];
+          updateBoardOptions(game.board);
+        },
+        currState() {
+          //Dynamically changing the style of the button with a method
+          //if preset -> disabled
+          //if suggested -> blue
+          //if only one possible but value not set -> green
+          //if one possible and value set -> green outline
+          //if no value available -> red
+          return this.state.locked
+            ? "disabled"
+            : this.state.suggested && this.hints
+            ? "btn-primary"
+            : this.state.possible.length == 1 && this.hints
+            ? this.state.value == -1
+              ? "btn-success"
+              : "btn-outline-success"
+            : this.state.possible.length == 0
+            ? "btn-danger"
+            : "";
+        },
+      },
+      computed: {},
+    });
+
+    /*loop through the neighbors and find the available states*/
+    function updateOptions(state) {
+      //filter out the matches in Neighbor
+      var currStates = state.states;
+      state.hNeighbors.forEach((hNei) => {
+        currStates = currStates.filter((st) => st != hNei.value);
+      });
+      state.vNeighbors.forEach((vNei) => {
+        currStates = currStates.filter((st) => st != vNei.value);
+      });
+      state.bNeighbors.forEach((bNei) => {
+        currStates = currStates.filter((st) => st != bNei.value);
+      });
+      state.possible = currStates;
+    }
+
+    function updateBoardOptions(board) {
+      for (var i = 0; i < board.length; i++) {
+        for (var j = 0; j < board[i].length; j++) {
+          updateOptions(board[i][j]);
+        }
+      }
+    }
+
+    var solvingMoves = [];
+
+    /*
+Sudoku Solver using Backtracking Algorithm
+Reference: https://stackoverflow.com/questions/42736648/sudoku-solver-in-js
+*/
+    function solve(board) {
+      //loop through the board
+      for (let i = 0; i < board.length; i++) {
+        for (let j = 0; j < board[i].length; j++) {
+          var tempNum = board[i][j];
+          //if it is empty
+          if (tempNum.value == -1) {
+            //plug numbers to try
+            for (let k = 1; k <= 9; k++) {
+              if (tempNum.checkValidity(k)) {
+                //if it is valid plug it
+                tempNum.value = k;
+                //recursively call this algorithm
+                if (solve(board)) {
+                  solvingMoves.push({
+                    x: tempNum.x,
+                    y: tempNum.y,
+                    valBefore: tempNum.lastValue,
+                    valAfter: tempNum.value,
+                  });
+                  //update last after recording
+                  tempNum.lastValue = tempNum.value;
+                  return true;
+                } else {
+                  //if at somepoint it does not work any more, back track it
+                  debugLog(`Backtracked ${k} at [${i}],[${j}]`);
+                  //undo the change
+                  tempNum.value = -1;
+                }
+              }
+            }
+            //if out of valid options start the backtrack
+            return false;
+          }
+        }
+      }
+
+      updateBoardOptions(game.board);
+      return true;
+    }
+
+    /*
+Vueeee
+*/
+    let app = new Vue({
+      el: "#app",
+      data: {
+        sudokuGame: game,
+        isDebug: debug,
+        difficulty: "Easy",
+        //Changed my mind to not use emoji
+        diffOptions: [
+          { diff: "Easy", icon: "👶" },
+          { diff: "Medium", icon: "🙂" },
+          { diff: "Hard", icon: "😠" },
+          { diff: "Insane", icon: "😈" },
+        ],
+        hints: false,
+        suggestedCell: null,
+      },
+      methods: {
+        printBoard() {
+          var boardStr = "";
+          for (var i = 0; i < this.sudokuGame.board.length; i++) {
+            tempRow = [];
+            for (var j = 0; j < this.sudokuGame.board[i].length; j++) {
+              boardStr += this.sudokuGame.board[i][j].value + ", ";
+            }
+            boardStr += "\n";
+          }
+          debugLog(boardStr);
+        },
+        solveSudoku() {
+          debugLog("Solving sudoku");
+          solvingMoves = [];
+          solve(this.sudokuGame.board);
+          this.sudokuGame.undoAdd(solvingMoves);
+          debugLog("Solving Completed");
+        },
+        reset() {
+          this.sudokuGame.init();
+        },
+        getStyle(state) {
+          var row = state.y;
+          var col = state.x;
+          var retStyle = {};
+          var thickBorder = "2px solid #000000";
+          //add top border if on the every third row
+          if (row % 3 === 0) retStyle.borderTop = thickBorder;
+          //add bottom border if on the last row
+          if (row === 8) retStyle.borderBottom = thickBorder;
+          //add left border if on the every third col
+          if (col % 3 === 0) retStyle.borderLeft = thickBorder;
+          //add right border if on the last col
+          if (col === 8) retStyle.borderRight = thickBorder;
+          return retStyle;
+        },
+        generateSudoku() {
+          this.sudokuGame.init();
+          var board = this.sudokuGame.board;
+          //randomly generate the first line
+          var firstLine = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+          /*
+      Durstenfeld shuffle
+      xP too lazy to implement my own shuffle
+      Reference: https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
+      */
+          for (var i = firstLine.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var temp = firstLine[i];
+            firstLine[i] = firstLine[j];
+            firstLine[j] = temp;
+          }
+          //put in the values
+          firstLine.forEach((num, j) => {
+            board[0][j].value = num;
+          });
+
+          //get a solved board
+          solve(board);
+
+          //remove values randomly
+          var mult = 0.0;
+          switch (this.difficulty) {
+            case "Easy":
+              mult = 0.5;
+              break;
+            case "Medium":
+              mult = 0.7;
+              break;
+            case "Hard":
+              mult = 0.8;
+              break;
+            case "Insane":
+              mult = 0.9;
+              break;
+            case "Impossible":
+              mult = 0.95;
+              break;
+          }
+          //Loop through the board
+          board.forEach((row) => {
+            row.forEach((col) => {
+              //remove the value if less than mult
+              if (Math.random() < mult) {
+                col.value = -1;
+                col.lastValue = -1;
+              } else col.locked = true;
+            });
+          });
+
+          //update options
+          updateBoardOptions(this.sudokuGame.board);
+        },
+        fillPossible() {
+          //get those who only got one possibility
+          var ones = this.sudokuGame.getLowestEntropies();
+
+          //base case
+          //if(ones.length === 0)
+          //  return;
+
+          var moves = [];
+
+          //fillin the value
+          ones.forEach((st) => {
+            if (st.value == -1) {
+              st.value = st.possible[0];
+
+              debugLog(
+                `Recording the move at [${st.y}],[${st.x}], changing ${st.lastValue} to ${st.value}`
+              );
+
+              //record for undo
+              moves.push({
+                x: st.x,
+                y: st.y,
+                valBefore: st.lastValue,
+                valAfter: st.value,
+              });
+              //update last after recording
+              st.lastValue = st.value;
+
+              //update board
+              updateBoardOptions(this.sudokuGame.board);
+            }
+          });
+
+          //add to undo stack
+          this.sudokuGame.undoAdd(moves);
+
+          //call it self again to see if theres any left overs
+          //disabled since it will just solve the board in easy mode
+          //this.fillPossible();
+        },
+        toggleHints() {
+          this.hints = !this.hints;
+        },
+        suggestMove() {
+          if (this.suggestedCell != null) this.suggestedCell.suggested = false;
+          var suggestCell = this.sudokuGame.getTheLowestEntropy();
+          suggestCell.suggested = true;
+          this.suggestedCell = suggestCell;
+        },
+        undoSudoku() {
+          this.sudokuGame.undo();
+        },
+        redoSudoku() {
+          this.sudokuGame.redo();
+        },
+      },
+      computed: {
+        disableUndo() {
+          return this.sudokuGame.undoStack.length == 0;
+        },
+        disableRedo() {
+          return this.sudokuGame.redoStack.length == 0;
+        },
+      },
+    });
+
+    game.init();
+  </script>
+</html>
