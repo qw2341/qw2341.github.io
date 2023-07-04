@@ -60,7 +60,7 @@
     </header>
 
     <section id="portfolio" class="py-5">
-      <div id="portfolio-container"></div>
+      <div id="portfolio-container" class="row"></div>
     </section>
 
     <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
@@ -69,7 +69,7 @@
     <script src="get_portfolio_folders.php"></script>
 
     <script>
-      let portfolioList = ["roguelike", "favoritelocations"];
+      let portfolioList = ["cyos", "sudoku", "roguelike", "favoritelocations"];
 
       portfolioList.forEach((folderName) => createCard(folderName));
 

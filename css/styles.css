@@ -81,9 +81,30 @@ a {
   border: 1px solid #333;
 }
 
+.row {
+  display: flex;
+  flex-wrap: wrap;
+}
+
 .card img {
   width: 100%;
   height: auto;
-  max-width: 300px;
   object-fit: cover;
+}
+
+@media (min-width: 992px) {
+  /* For desktop and larger screens */
+  .card {
+    flex: 0 0 33.33%;
+    max-width: 33.33%;
+    margin: 1.5%;
+  }
+}
+
+@media (max-width: 991px) {
+  /* For mobile and smaller screens */
+  .card {
+    flex: 0 0 100%;
+    max-width: 100%;
+  }
 }
